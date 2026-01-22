@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Machine Vision</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ECDBBA;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+
+<script>
+new p5(p => {
+
+  const palette = [
+    "#ECDBBA",
+    "#b84B31",
+    "#2D4263",
+    "#191919"
+  ];
+
+  let cols = 60;
+  let rows = 120;
+  let scanners = [];
+  let anomalies = [];
+  let t = 0;
+
+  p.setup = () => {
+    p.createCanvas(420, 700);
+    p.noSmooth();
+    scanners.push(makeCentralScanner());
+  };
+
+  p.draw = () => {
+    p.background(palette[0]);
+    updateAnomalies();
+    drawPerceptualField();
+    drawScanners();
+    t += 0.001;
+  };
+
+  function updateAnomalies() {
+    if (p.frameCount % 180 === 0 && anomalies.length < 2) {
+      anomalies.push(makeAnomaly());
+    }
+    anomalies.forEach(a => a.life--);
+    anomalies = anomalies.filter(a => a.life > 0);
+  }
+
+  function makeAnomaly() {
+    let x, y, idx;
+    do {
+      x = p.int(p.random(cols));
+      y = p.int(p.random(rows));
+      let cx = cols / 2;
+      let cy = rows / 2;
+      let d = p.dist(x, y, cx, cy) / p.dist(0, 0, cx, cy);
+      idx = p.floor(d * (palette.length - 1));
+    } while (idx < 2);
+
+    return { x, y, life: p.int(p.random(140, 220)) };
+  }
+
+  function drawPerceptualField() {
+    let pxW = p.width / cols;
+    let pxH = p.height / rows;
+    let cx = cols / 2;
+    let cy = rows / 2;
+    let maxD = p.dist(0, 0, cx, cy);
+
+    p.noStroke();
+
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        let d = p.dist(x, y, cx, cy) / maxD;
+        d += p.sin(t * 2) * 0.02;
+        d = p.constrain(d, 0, 1);
+
+        let scaled = d * (palette.length - 1);
+        let idx = p.floor(scaled);
+        let amt = p.floor((scaled - idx) * 5) / 5;
+
+        let c = p.lerpColor(
+          p.color(palette[idx]),
+          p.color(palette[Math.min(idx + 1, palette.length - 1)]),
+          amt
+        );
+
+        let jitter = p.map(p.noise(x * 0.2, y * 0.2), 0, 1, -8, 8);
+
+        let anomalyHere = anomalies.find(a => a.x === x && a.y === y);
+
+        if (anomalyHere) {
+          p.fill(palette[0]);
+        } else {
+          p.fill(
+            p.red(c) + jitter,
+            p.green(c) + jitter,
+            p.blue(c)
+          );
+        }
+
+        p.rect(x * pxW, y * pxH, pxW + 0.5, pxH + 0.5);
+      }
+    }
+  }
+
+  function drawScanners() {
+    p.stroke(236, 219, 186, 180);
+    p.strokeWeight(1);
+    p.noFill();
+    p.drawingContext.setLineDash([4, 4]);
+
+    drawScanner(scanners[0]);
+
+    anomalies.forEach(a => {
+      let pxW = p.width / cols;
+      let pxH = p.height / rows;
+      drawScanner({
+        x: a.x * pxW - pxW * 2,
+        y: a.y * pxH - pxH * 2,
+        w: pxW * 6,
+        h: pxH * 6,
+        value: p.random(0.6, 0.9)
+      });
+    });
+
+    p.drawingContext.setLineDash([]);
+  }
+
+  function makeCentralScanner() {
+    return {
+      x: p.width / 2 - 60,
+      y: p.height / 2 - 80,
+      w: 120,
+      h: 160,
+      value: 0.82
+    };
+  }
+
+  function drawScanner(s) {
+    p.rect(s.x, s.y, s.w, s.h);
+  }
+
+});
+</script>
+
+</body>
+</html>
